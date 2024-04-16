@@ -153,7 +153,6 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 			for (const auto& dep : deps) {
 				quality.push_back(tbl.getScore(dep));
 			}
-
 			picked_index = noise::EM(eng, quality, 1000.0, sens);
 
 		} else {
@@ -169,32 +168,54 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 			for (const auto& dep : deps) {
 				// get the histogram
 				counts = tbl.getCounts(dep.cols, dep.lvls);
+				double sumCounts = accumulate(counts.begin(), counts.end(), 0.0);
 				widths = tbl.getWidth(dep.cols, dep.lvls);
 				// add PML noise based on the mode
 				// first, calculate p_min
 				if (prior_mode==1) { // uniform
-					p_min = 1.0 / accumulate(widths.begin(), widths.end(), 1.0, std::multiplies<double>()); //check this line
-			//	    cout << "Uniform prior: " << p_min << " ";
+					p_min = 1.0 / counts.size();
+			//	    cout << "Uniform prior: " << p_min << " ";//db
 				} else if (prior_mode==2) { // prior from data
-					vector<double>::iterator minCount = min_element(counts.begin(), counts.end()); // also these, figure out why it doesnt work
-					double sumCounts = accumulate(counts.begin(), counts.end(), 0.0);
+					vector<double>::iterator minCount = min_element(counts.begin(), counts.end()); 
+					// we need to ignore the 0 values here, or -log(p_min) and budget constraint?
+					// TODO: check tomorrow 
 					p_min = *minCount / sumCounts;
-					cout << "Data prior: " << p_min;
+					cout << "Data prior: " << p_min;//db
 				}
 				// write the noise term in terms of p_min
 				double noise_scale = 2/(budget+log((1-p_min)/(1-p_min*exp(budget))));
-			//	cout << "Noise: " << noise_scale << endl;
+			//	cout << "Noise: " << noise_scale << endl;//db
+			//	cout << counts.size() << endl;//db
 				vector<double> noisy_counts;
 				// add noise to counted values
 				for (double count: counts) {
-					noisy_counts.push_back(count + noise::nextLaplace(eng, noise_scale));
+				//	cout << count << " ";//db
+					double noisy_count = count + noise::nextLaplace(eng, noise_scale);
+					// equalize the values smaller than 0 to zero.
+					if (noisy_count < 0) {noisy_count = 0;}
+					noisy_counts.push_back(noisy_count);
 				}
+				//cout << endl; //db
+				// normalize the noisy counts vector so that the total counts are equal
+				double sumNoisy = accumulate(noisy_counts.begin(), noisy_counts.end(), 0.0);
+				for (int ind = 0; ind< noisy_counts.size(); ind++) {
+					noisy_counts[ind] = (sumCounts * noisy_counts[ind]) / sumNoisy;
+			//		cout << noisy_counts[ind] << " ";  //db
+				}
+			//	cout << endl; //db
+			//	cout << "Noisy total: " << accumulate(noisy_counts.begin(), noisy_counts.end(), 0.0) << endl;//db
+			//	cout << "Counts total: " << accumulate(counts.begin(), counts.end(), 0.0) << endl;//db
+
 				// store the noisy distributions for each dependence
 				//noisy_distributions.push_back(noisy_counts);
 				// now, convert the noisy counts to mutual information and store
+				
+			//	cout << tbl.getI(noisy_counts, widths)[dep.ptr] << " ";//db
 				quality.push_back(tbl.getI(noisy_counts, widths)[dep.ptr]);
 			}
 			picked_index = distance(quality.begin(), max_element(quality.begin(), quality.end()));
+			
+		//	cout << endl << quality[picked_index] << endl;//db
 		}
 
 		dependence picked = deps[picked_index];
@@ -202,7 +223,7 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 		S.insert(picked.x.first);								
 		V.erase(picked.x.first);
 		model.push_back(picked);
-		cout << to_string(picked) << endl;
+	//	cout << to_string(picked) << endl;
 		// we want to return the selected dependencies and their noisy distributions
 	}
 	return model;

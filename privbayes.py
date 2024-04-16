@@ -33,10 +33,8 @@ def privbayes_measurements(data, eps=1.0, seed=0, mode='dp'):
         ans = privBayesSelect.py_get_model(values, config, eps, 1.0, seed, 1)
     elif mode == 'uniform':
         ans = privBayesSelect.py_get_model(values, config, eps, 1.0, seed, 4)
-        print(ans)
     elif mode == 'real':
         ans = privBayesSelect.py_get_model(values, config, eps, 1.0, seed, 5)
-        print(ans)
 
     ans = ans.decode('utf-8')[:-1]
     
@@ -178,25 +176,25 @@ if __name__ == '__main__':
     # synth6.df.to_csv('uniform_pgm.csv')
 
     # prior same as real data (!!!expermiental, possible privacy breach)
-    measurements_real = privbayes_measurements(data, 1.0, args.seed, 'real')
-    est5 = privbayes_inference(data.domain, measurements_real, total=total)
-    # est5.df.to_csv('real.csv')
-    # elim_order3 = [m[3][0] for m in measurements_real][::-1]
-    # engine3 = FactoredInference(data.domain, iters=args.iters, warm_start=False, elim_order=elim_order3)
-    # est7 = engine.estimate(measurements_real, total=len(est5.df))
-    # synth7 = est7.synthetic_data(rows=len(est5.df))
-    # synth7.df.to_csv('real_pgm.csv')
+#     measurements_real = privbayes_measurements(data, 1.0, args.seed, 'real')
+#     est5 = privbayes_inference(data.domain, measurements_real, total=total)
+#     # est5.df.to_csv('real.csv')
+#     # elim_order3 = [m[3][0] for m in measurements_real][::-1]
+#     # engine3 = FactoredInference(data.domain, iters=args.iters, warm_start=False, elim_order=elim_order3)
+#     # est7 = engine.estimate(measurements_real, total=len(est5.df))
+#     # synth7 = est7.synthetic_data(rows=len(est5.df))
+#     # synth7.df.to_csv('real_pgm.csv')
 
-    ### NO PRIVACY
-    # measurements_nop = privbayes_measurements(data, 1.0, args.seed, 'off')
-    # est_nop = privbayes_inference(data.domain, measurements_nop, total=total)
-    # est_nop.df.to_csv('no_privacy.csv')
+#     ### NO PRIVACY
+#     # measurements_nop = privbayes_measurements(data, 1.0, args.seed, 'off')
+#     # est_nop = privbayes_inference(data.domain, measurements_nop, total=total)
+#     # est_nop.df.to_csv('no_privacy.csv')
     
-    # elim_order = [m[3][0] for m in measurements_nop][::-1]
-    # engine = FactoredInference(data.domain, iters=args.iters, warm_start=False, elim_order=elim_order)
-    # est_nop2 = engine.estimate(measurements_nop, total=len(est_nop.df))
-    # synth_nop = est_nop2.synthetic_data(rows=len(est_nop.df))
-    # synth_nop.df.to_csv('no_privacy_pgm.csv')
+#     # elim_order = [m[3][0] for m in measurements_nop][::-1]
+#     # engine = FactoredInference(data.domain, iters=args.iters, warm_start=False, elim_order=elim_order)
+#     # est_nop2 = engine.estimate(measurements_nop, total=len(est_nop.df))
+#     # synth_nop = est_nop2.synthetic_data(rows=len(est_nop.df))
+#     # synth_nop.df.to_csv('no_privacy_pgm.csv')
 
 
     def err(true, est):
@@ -207,10 +205,10 @@ if __name__ == '__main__':
     # err_pbpgm = []
     err_uni = []
     # err_uni_pgm = []
-    err_real = []
-    # err_real_pgm = []
-    # err_nop = []
-    # err_nop_pgm = []
+#     err_real = []
+#     # err_real_pgm = []
+#     # err_nop = []
+#     # err_nop_pgm = []
     
 
     for p, W in workload:
@@ -219,28 +217,28 @@ if __name__ == '__main__':
      #   pgm = W.dot(est2.project(p).datavector())
         # pbpgm = W.dot(est3.project(p).datavector())
         uni = W.dot(est4.project(p).datavector())
-        # unipgm = W.dot(est6.project(p).datavector())
-        real = W.dot(est5.project(p).datavector())
-        # realpgm = W.dot(est7.project(p).datavector())
-        # nop = W.dot(est_nop.project(p).datavector())
-        # nop_pgm = W.dot(est_nop2.project(p).datavector())
+#         # unipgm = W.dot(est6.project(p).datavector())
+#         real = W.dot(est5.project(p).datavector())
+#         # realpgm = W.dot(est7.project(p).datavector())
+#         # nop = W.dot(est_nop.project(p).datavector())
+#         # nop_pgm = W.dot(est_nop2.project(p).datavector())
         err_pb.append(err(true, pb))
         #err_pgm.append(err(true, pgm))
         # err_pbpgm.append(err(true, pbpgm))
         err_uni.append(err(true, uni))
-        # err_uni_pgm.append(err(true, unipgm))
-        err_real.append(err(true, real))
-        # err_real_pgm.append(err(true, realpgm))
-        # err_nop.append(err(true, nop))
-        # err_nop_pgm.append(err(true, nop_pgm))
+#         # err_uni_pgm.append(err(true, unipgm))
+#         err_real.append(err(true, real))
+#         # err_real_pgm.append(err(true, realpgm))
+#         # err_nop.append(err(true, nop))
+#         # err_nop_pgm.append(err(true, nop_pgm))
 
-   # print('Not private models')
+#    # print('Not private models')
     print('Error of PrivBayes    : %.3f' % np.mean(err_pb))
    # print('Error of PrivBayes+PGM: %.3f' % np.mean(err_pgm))
     # print('Error of PrivBayes+PGM: %.3f' % np.mean(err_pbpgm))
     print('Error of PrivBayes with uniform prior: %.3f' % np.mean(err_uni))
-    # print('Error of PrivBayes+PGM with uniform prior: %.3f' % np.mean(err_uni_pgm))
-    print('Error of PrivBayes with prior taken from real data: %.3f' % np.mean(err_real))
+#     # print('Error of PrivBayes+PGM with uniform prior: %.3f' % np.mean(err_uni_pgm))
+#     print('Error of PrivBayes with prior taken from real data: %.3f' % np.mean(err_real))
     # print('Error of PrivBayes+PGM with prior taken from real data: %.3f' % np.mean(err_real_pgm))
     # print('Error of PrivBayes with no privacy: %.3f' % np.mean(err_nop))
     # print('Error of PrivBayes+PGM with no privacy: %.3f' % np.mean(err_nop_pgm))
