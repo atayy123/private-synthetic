@@ -29,6 +29,7 @@ public:
 	~bayesian();
 
 	vector<dependence> greedy(double);
+	vector<dependence> pml_select(double, int);
 	vector<dependence> greedy_exact(double);
 	vector<dependence> naive(int);
 

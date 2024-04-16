@@ -26,30 +26,39 @@ def privbayes_measurements(data, eps=1.0, seed=0, mode='dp'):
     config = config.encode('utf-8')
     
     values = np.ascontiguousarray(data.df.values.astype(np.int32))
+    
     if mode == 'off':
-        ans = privBayesSelect.py_get_model(values, config, eps/2, 1.0, seed, 2)
-    else:
-        ans = privBayesSelect.py_get_model(values, config, eps/2, 1.0, seed, 1)
+        ans = privBayesSelect.py_get_model(values, config, eps, 1.0, seed, 2)
+    elif mode == 'dp':
+        ans = privBayesSelect.py_get_model(values, config, eps, 1.0, seed, 1)
+    elif mode == 'uniform':
+        ans = privBayesSelect.py_get_model(values, config, eps, 1.0, seed, 4)
+        print(ans)
+    elif mode == 'real':
+        ans = privBayesSelect.py_get_model(values, config, eps, 1.0, seed, 5)
+        print(ans)
+
     ans = ans.decode('utf-8')[:-1]
     
     projections = []
     for m in ans.split('\n'):
         p = [domain.attrs[int(a)] for a in m.split(',')[::2]]
         projections.append(tuple(p))
-  
+        
     prng = np.random.RandomState(seed) 
     measurements = []
     delta = len(projections)
     for proj in projections:
         x = data.project(proj).datavector()
-       # print(proj,len(x))
+        print(proj,len(x))
        # print(x)
         I = Identity(x.size)
         budget = eps/(2*delta)
         if mode == 'dp': # differential privacy
             noise = prng.laplace(loc=0, scale=2/budget, size=x.size)
-            # if proj == "('sex')":
+            # if len(proj) == 2:
             #     print(mode,proj)
+            #     print(type(proj))
             #     print(2/budget)
             #     print(noise)
         elif mode == 'off':
@@ -63,7 +72,7 @@ def privbayes_measurements(data, eps=1.0, seed=0, mode='dp'):
             if -np.log(p_min) >= budget:
                 b = 2/(budget+np.log((1-p_min)/(1-p_min*np.exp(budget))))
                 noise = prng.laplace(loc=0, scale=b, size=x.size)
-                # if proj == "('sex')": #or "('capital-gain', 'sex', 'income>50K')":
+                # if len(proj) == 2:
                 #     print(mode, proj)
                 #     print(b)
                 #     print(p_min)
@@ -123,7 +132,7 @@ def default_params():
     params['dataset'] = 'adult'
     params['iters'] = 10000
     params['epsilon'] = 1.0
-    params['seed'] = 0
+    params['seed'] = 10
   #  params['mode'] = 'uniform'
 
     return params

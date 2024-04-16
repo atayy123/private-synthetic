@@ -22,9 +22,12 @@ score = accuracy_score(y_test,pred)
 scores.append(score)
 print('Model trained with real data: %.3f' % score)
 
-dbs = os.listdir('./synth others')
+dbs = os.listdir('./synth')
 for db in dbs:
-    data = pd.read_csv('synth others/' + db,index_col=0)
+    if db == 'adult_syn_trial.csv':
+        data = pd.read_csv('synth/' + db)
+    else:
+        data = pd.read_csv('synth/' + db,index_col=0)
     y_temp = data['income>50K']
     X_temp = data.drop('income>50K',axis=1)
 
@@ -36,9 +39,9 @@ for db in dbs:
     scores.append(score)
     print(db +': %.3f' % score)
 
-labs = ['Real', 'No privacy', 'DP', 'Prior from data', 'Uniform']
+labs = ['Real', 'other', 'No privacy', 'DP', 'Prior from data', 'Uniform']
 plt.bar(labs, scores)
-plt.title('PrivBayes+PGM tested on real data')
+plt.title('PrivBayes tested on real data')
 plt.ylabel('Accuracy')
 plt.xlabel('Train dataset')
 plt.show()

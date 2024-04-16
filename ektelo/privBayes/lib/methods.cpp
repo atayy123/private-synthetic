@@ -33,6 +33,7 @@ bayesian::bayesian(engine& eng1, table& tbl1, double ep, double theta, int mode)
 
 	// Normal PrivBayes
 	if (mode == 1){
+		//model = pml_select(0.5 * ep);
 		model = greedy(0.5 * ep);
 		addnoise(0.5 * ep);
 	}
@@ -43,18 +44,23 @@ bayesian::bayesian(engine& eng1, table& tbl1, double ep, double theta, int mode)
 		noNoise();
 	}
 
-	// InfLaplace
-	if (mode == 3){
-		model = greedy(0.5 * ep);
-		noNoise();
-		//syn.initialize(tbl);
-	}
-
 	// Build a naive bayes network conditioned on the argument of 'naive()'
-	if (mode == 4){
+	if (mode == 3){
 		model = naive(2);
 		addnoise(ep);
 
+	}
+
+	// PML with uniform prior
+	if (mode == 4){
+		model = pml_select(0.5 * ep, 1);
+		addnoise(0.5 * ep);
+	}
+
+	// PML with real prior
+	if (mode == 5){
+		model = pml_select(0.5 * ep, 2);
+		addnoise(0.5 * ep);
 	}
 
 	sampling(tbl.size());
@@ -95,20 +101,111 @@ vector<dependence> bayesian::greedy(double ep) {
 		//cout << deps.size() << " (ios) \t";
 		
 		vector<double> quality;
-		for (const auto& dep : deps) 
+		for (const auto& dep : deps) {
+		//	cout << tbl.getScore(dep) << " ";
 			quality.push_back(tbl.getScore(dep));
+		}
 
 		dependence picked = t ? deps[noise::EM(eng, quality, ep / (dim - 1), sens)] : deps[noise::EM(eng, quality, 1000.0, sens)];
 		// first selection is free: all scores are zero.
+	//	cout << endl << tbl.getScore(picked);
+		// cout << "Dep: " << to_string(picked) << endl;
+		// cout << "Cols: ";
+		// for (int c : picked.cols) {cout << c << ' ';}
+		// cout << endl << "Level: ";
+		// for (int c : picked.lvls) {cout << c << ' ';}
+		// cout << endl << "Depth: ";
+		// for (int c : picked.cols) {cout << tbl.getDepth(c) << ' ';}
+		// cout << endl << "Size: ";
+		// for (int c : picked.cols) {cout << tbl.getSize(c) << ' ';}
+		// cout << endl << "Width: ";
+		// for (int i=0; i < picked.cols.size(); i++) {cout << tbl.getWidth(picked.cols[i], picked.lvls[i]) << ' ';}
+	//	cout << tbl.getWidth(picked.cols[0], picked.lvls[0]);
+	//	cout << endl;
 
 		S.insert(picked.x.first);								
 		V.erase(picked.x.first);
 		model.push_back(picked);
-		//cout << to_string(picked) << endl;				// debug
+	//	cout << to_string(picked) << endl;				// debug
 	}
 	//cout << endl;
 	return model;
 
+}
+
+// prior_mode = 1 means uniform prior distribution
+// prior_mode = 2 means prior distribution is taken from original data (possible privacy violations)
+vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
+	vector<dependence> model;
+	double sens = tbl.sens;
+	double p_min;
+	set<int> S;
+	set<int> V = tools::setize(dim);
+	int picked_index;
+
+	for (int t = 0; t < dim; t++) {
+		// Pick candidate sets
+		vector<dependence> deps = S2V(S, V);
+		
+		// If t=0 (first selection), choose the first attribute randomly (do the same procedure as the original code)
+		if (t==0) {
+			vector<double> quality;
+			for (const auto& dep : deps) {
+				quality.push_back(tbl.getScore(dep));
+			}
+
+			picked_index = noise::EM(eng, quality, 1000.0, sens);
+
+		} else {
+			// For the other selections, get the histogram dist and add noise based on PML
+			// Then get the mutual information from the noisy distributions
+			// Select the dependence based on the noisy mutual information
+			vector<double> quality;
+			vector<vector<double>> noisy_distributions;
+			vector<double> counts;
+			vector<int> widths;
+			double budget = ep/dim;
+
+			for (const auto& dep : deps) {
+				// get the histogram
+				counts = tbl.getCounts(dep.cols, dep.lvls);
+				widths = tbl.getWidth(dep.cols, dep.lvls);
+				// add PML noise based on the mode
+				// first, calculate p_min
+				if (prior_mode==1) { // uniform
+					p_min = 1.0 / accumulate(widths.begin(), widths.end(), 1.0, std::multiplies<double>()); //check this line
+			//	    cout << "Uniform prior: " << p_min << " ";
+				} else if (prior_mode==2) { // prior from data
+					vector<double>::iterator minCount = min_element(counts.begin(), counts.end()); // also these, figure out why it doesnt work
+					double sumCounts = accumulate(counts.begin(), counts.end(), 0.0);
+					p_min = *minCount / sumCounts;
+					cout << "Data prior: " << p_min;
+				}
+				// write the noise term in terms of p_min
+				double noise_scale = 2/(budget+log((1-p_min)/(1-p_min*exp(budget))));
+			//	cout << "Noise: " << noise_scale << endl;
+				vector<double> noisy_counts;
+				// add noise to counted values
+				for (double count: counts) {
+					noisy_counts.push_back(count + noise::nextLaplace(eng, noise_scale));
+				}
+				// store the noisy distributions for each dependence
+				//noisy_distributions.push_back(noisy_counts);
+				// now, convert the noisy counts to mutual information and store
+				quality.push_back(tbl.getI(noisy_counts, widths)[dep.ptr]);
+			}
+			picked_index = distance(quality.begin(), max_element(quality.begin(), quality.end()));
+		}
+
+		dependence picked = deps[picked_index];
+		
+		S.insert(picked.x.first);								
+		V.erase(picked.x.first);
+		model.push_back(picked);
+		cout << to_string(picked) << endl;
+		// we want to return the selected dependencies and their noisy distributions
+	}
+	return model;
 }
 
 // Learn a naive bayesian network (for free)
