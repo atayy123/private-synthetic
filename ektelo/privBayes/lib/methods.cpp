@@ -176,11 +176,19 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 					p_min = 1.0 / counts.size();
 			//	    cout << "Uniform prior: " << p_min << " ";//db
 				} else if (prior_mode==2) { // prior from data
-					vector<double>::iterator minCount = min_element(counts.begin(), counts.end()); 
+					// create a copy of count vector and erase the 0 values
+					vector<double> count_no_zeros;
+					count_no_zeros = counts;
+					count_no_zeros.erase(
+						remove(count_no_zeros.begin(), count_no_zeros.end(), 0.0),
+						count_no_zeros.end()
+					);
+					// find non-zero minimum count value
+					vector<double>::iterator minCount = min_element(count_no_zeros.begin(), count_no_zeros.end()); 
 					// we need to ignore the 0 values here, or -log(p_min) and budget constraint?
 					// TODO: check tomorrow 
 					p_min = *minCount / sumCounts;
-					cout << "Data prior: " << p_min;//db
+			//		cout << "Data prior: " << p_min;//db
 				}
 				// write the noise term in terms of p_min
 				double noise_scale = 2/(budget+log((1-p_min)/(1-p_min*exp(budget))));
@@ -189,13 +197,13 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 				vector<double> noisy_counts;
 				// add noise to counted values
 				for (double count: counts) {
-				//	cout << count << " ";//db
+			//		cout << count << " ";//db
 					double noisy_count = count + noise::nextLaplace(eng, noise_scale);
 					// equalize the values smaller than 0 to zero.
 					if (noisy_count < 0) {noisy_count = 0;}
 					noisy_counts.push_back(noisy_count);
 				}
-				//cout << endl; //db
+			//	cout << endl; //db
 				// normalize the noisy counts vector so that the total counts are equal
 				double sumNoisy = accumulate(noisy_counts.begin(), noisy_counts.end(), 0.0);
 				for (int ind = 0; ind< noisy_counts.size(); ind++) {
@@ -205,6 +213,7 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 			//	cout << endl; //db
 			//	cout << "Noisy total: " << accumulate(noisy_counts.begin(), noisy_counts.end(), 0.0) << endl;//db
 			//	cout << "Counts total: " << accumulate(counts.begin(), counts.end(), 0.0) << endl;//db
+				
 
 				// store the noisy distributions for each dependence
 				//noisy_distributions.push_back(noisy_counts);
@@ -214,8 +223,11 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 				quality.push_back(tbl.getI(noisy_counts, widths)[dep.ptr]);
 			}
 			picked_index = distance(quality.begin(), max_element(quality.begin(), quality.end()));
-			
+
+		//	cout << "Number of deps: " << deps.size();
+		//	cout << "Number of scores: " << quality.size();
 		//	cout << endl << quality[picked_index] << endl;//db
+		//	return deps;
 		}
 
 		dependence picked = deps[picked_index];
