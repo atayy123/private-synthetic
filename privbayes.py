@@ -48,7 +48,7 @@ def privbayes_measurements(data, eps=1.0, seed=0, mode='dp'):
     delta = len(projections)
     for proj in projections:
         x = data.project(proj).datavector()
-        print(proj,len(x))
+        #print(proj,len(x))
        # print(x)
         I = Identity(x.size)
         budget = eps/(2*delta)
@@ -129,7 +129,7 @@ def default_params():
     params = {}
     params['dataset'] = 'adult'
     params['iters'] = 10000
-    params['epsilon'] = 1.0
+    params['epsilon'] = 0.1
     params['seed'] = 0
   #  params['mode'] = 'uniform'
 

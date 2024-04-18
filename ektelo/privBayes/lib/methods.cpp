@@ -53,13 +53,13 @@ bayesian::bayesian(engine& eng1, table& tbl1, double ep, double theta, int mode)
 
 	// PML with uniform prior
 	if (mode == 4){
-		model = pml_select(0.5 * ep, 1);
+		model = pml_select(ep, 1);
 		addnoise(0.5 * ep);
 	}
 
 	// PML with real prior
 	if (mode == 5){
-		model = pml_select(0.5 * ep, 2);
+		model = pml_select(ep, 2);
 		addnoise(0.5 * ep);
 	}
 
@@ -160,7 +160,7 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 			// Then get the mutual information from the noisy distributions
 			// Select the dependence based on the noisy mutual information
 			vector<double> quality;
-			vector<vector<double>> noisy_distributions;
+		//	vector<vector<double>> noisy_distributions;
 			vector<double> counts;
 			vector<int> widths;
 			double budget = ep/dim;
@@ -185,49 +185,44 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 					);
 					// find non-zero minimum count value
 					vector<double>::iterator minCount = min_element(count_no_zeros.begin(), count_no_zeros.end()); 
-					// we need to ignore the 0 values here, or -log(p_min) and budget constraint?
-					// TODO: check tomorrow 
+					
 					p_min = *minCount / sumCounts;
 			//		cout << "Data prior: " << p_min;//db
 				}
-				// write the noise term in terms of p_min
-				double noise_scale = 2/(budget+log((1-p_min)/(1-p_min*exp(budget))));
-			//	cout << "Noise: " << noise_scale << endl;//db
-			//	cout << counts.size() << endl;//db
 				vector<double> noisy_counts;
-				// add noise to counted values
-				for (double count: counts) {
-			//		cout << count << " ";//db
-					double noisy_count = count + noise::nextLaplace(eng, noise_scale);
-					// equalize the values smaller than 0 to zero.
-					if (noisy_count < 0) {noisy_count = 0;}
-					noisy_counts.push_back(noisy_count);
+				// check if budget < -log(p_min), it is a PML property 
+				if (budget <= -log(p_min)) {
+					// we add noise
+					// write the noise term in terms of p_min
+					double noise_scale = 2/(budget+log((1-p_min)/(1-p_min*exp(budget))));
+					for (double count: counts) {
+						double noisy_count = count + noise::nextLaplace(eng, noise_scale);
+						// equalize the values smaller than 0 to zero.
+						if (noisy_count < 0) {noisy_count = 0;}
+						noisy_counts.push_back(noisy_count);
+					}
+					// normalize the noisy counts vector so that the total counts are equal
+					// (pdf normalization)
+					double sumNoisy = accumulate(noisy_counts.begin(), noisy_counts.end(), 0.0);
+					for (int ind = 0; ind< noisy_counts.size(); ind++) {
+						noisy_counts[ind] = (sumCounts * noisy_counts[ind]) / sumNoisy;
+					}
+				} else {
+					// no noise
+					noisy_counts = counts;
 				}
-			//	cout << endl; //db
-				// normalize the noisy counts vector so that the total counts are equal
-				double sumNoisy = accumulate(noisy_counts.begin(), noisy_counts.end(), 0.0);
-				for (int ind = 0; ind< noisy_counts.size(); ind++) {
-					noisy_counts[ind] = (sumCounts * noisy_counts[ind]) / sumNoisy;
-			//		cout << noisy_counts[ind] << " ";  //db
-				}
-			//	cout << endl; //db
-			//	cout << "Noisy total: " << accumulate(noisy_counts.begin(), noisy_counts.end(), 0.0) << endl;//db
-			//	cout << "Counts total: " << accumulate(counts.begin(), counts.end(), 0.0) << endl;//db
-				
 
-				// store the noisy distributions for each dependence
-				//noisy_distributions.push_back(noisy_counts);
-				// now, convert the noisy counts to mutual information and store
+				// store the noisy distributions for each dependence,
+				// we want to return the counts for picked ones
+			//  noisy_distributions.push_back(noisy_counts);
+				
+				// now, convert the noisy counts to mutual information
 				
 			//	cout << tbl.getI(noisy_counts, widths)[dep.ptr] << " ";//db
 				quality.push_back(tbl.getI(noisy_counts, widths)[dep.ptr]);
 			}
+			// find the index of largest MI
 			picked_index = distance(quality.begin(), max_element(quality.begin(), quality.end()));
-
-		//	cout << "Number of deps: " << deps.size();
-		//	cout << "Number of scores: " << quality.size();
-		//	cout << endl << quality[picked_index] << endl;//db
-		//	return deps;
 		}
 
 		dependence picked = deps[picked_index];
