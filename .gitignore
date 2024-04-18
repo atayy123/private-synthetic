@@ -1,0 +1,6 @@
+__pycache__/
+.vscode/
+ektelo/__pycache__/
+ektelo/privBayes/__pycache__/
+ektelo/privBayes/build/
+ektelo/privBayes/*.pyd
