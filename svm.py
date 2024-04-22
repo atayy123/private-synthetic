@@ -22,12 +22,12 @@ score = accuracy_score(y_test,pred)
 scores.append(score)
 print('Model trained with real data: %.3f' % score)
 
-dbs = os.listdir('./synth')
+dbs = os.listdir('./newest')
 for db in dbs:
     if db == 'adult_syn_trial.csv':
-        data = pd.read_csv('synth/' + db)
+        data = pd.read_csv('newest/' + db)
     else:
-        data = pd.read_csv('synth/' + db,index_col=0)
+        data = pd.read_csv('newest/' + db,index_col=0)
     y_temp = data['income>50K']
     X_temp = data.drop('income>50K',axis=1)
 

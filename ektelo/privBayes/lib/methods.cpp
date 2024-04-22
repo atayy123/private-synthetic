@@ -54,16 +54,16 @@ bayesian::bayesian(engine& eng1, table& tbl1, double ep, double theta, int mode)
 	// PML with uniform prior
 	if (mode == 4){
 		model = pml_select(ep, 1);
-		addnoise(0.5 * ep);
+		//addnoise(0.5 * ep);
 	}
 
 	// PML with real prior
 	if (mode == 5){
 		model = pml_select(ep, 2);
-		addnoise(0.5 * ep);
+		//addnoise(0.5 * ep);
 	}
 
-	sampling(tbl.size());
+	sampling(tbl.size(), "Ep"+std::to_string(ep)+"Mode"+std::to_string(mode)+".csv");
 
 	//print_model();
 
@@ -138,83 +138,57 @@ vector<dependence> bayesian::greedy(double ep) {
 vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 	vector<dependence> model;
 	double sens = tbl.sens;
-	double p_min;
 	set<int> S;
 	set<int> V = tools::setize(dim);
 	int picked_index;
+	syn.initialize(tbl);
 
 	for (int t = 0; t < dim; t++) {
 		// Pick candidate sets
 		vector<dependence> deps = S2V(S, V);
+		vector<double> quality;
+		vector<double> counts;
+		double budget = ep/dim;
 		
 		// If t=0 (first selection), choose the first attribute randomly (do the same procedure as the original code)
 		if (t==0) {
-			vector<double> quality;
 			for (const auto& dep : deps) {
 				quality.push_back(tbl.getScore(dep));
 			}
 			picked_index = noise::EM(eng, quality, 1000.0, sens);
+			// get the noisy counts of the chosen dependence
+			dependence dp = deps[picked_index];
+			counts = tbl.getCounts(dp.cols, dp.lvls);
+			double sumCounts = accumulate(counts.begin(), counts.end(), 0.0);
+			vector<double> noisy_counts = pml_noise(counts, sumCounts, prior_mode, budget);
+			syn.margins[dp.cols].counts[dp.lvls] = noisy_counts;
 
 		} else {
 			// For the other selections, get the histogram dist and add noise based on PML
 			// Then get the mutual information from the noisy distributions
 			// Select the dependence based on the noisy mutual information
 			vector<double> quality;
-		//	vector<vector<double>> noisy_distributions;
-			vector<double> counts;
+			vector<vector<double>> noisy_distributions;
 			vector<int> widths;
-			double budget = ep/dim;
 
 			for (const auto& dep : deps) {
 				// get the histogram
 				counts = tbl.getCounts(dep.cols, dep.lvls);
 				double sumCounts = accumulate(counts.begin(), counts.end(), 0.0);
 				widths = tbl.getWidth(dep.cols, dep.lvls);
-				// add PML noise based on the mode
-				// first, calculate p_min
-				if (prior_mode==1) { // uniform
-					p_min = 1.0 / counts.size();
-			//	    cout << "Uniform prior: " << p_min << " ";//db
-				} else if (prior_mode==2) { // prior from data
-					// create a copy of count vector and erase the 0 values
-					vector<double> count_no_zeros;
-					count_no_zeros = counts;
-					count_no_zeros.erase(
-						remove(count_no_zeros.begin(), count_no_zeros.end(), 0.0),
-						count_no_zeros.end()
-					);
-					// find non-zero minimum count value
-					vector<double>::iterator minCount = min_element(count_no_zeros.begin(), count_no_zeros.end()); 
-					
-					p_min = *minCount / sumCounts;
-			//		cout << "Data prior: " << p_min;//db
-				}
-				vector<double> noisy_counts;
-				// check if budget < -log(p_min), it is a PML property 
-				if (budget <= -log(p_min)) {
-					// we add noise
-					// write the noise term in terms of p_min
-					double noise_scale = 2/(budget+log((1-p_min)/(1-p_min*exp(budget))));
-					for (double count: counts) {
-						double noisy_count = count + noise::nextLaplace(eng, noise_scale);
-						// equalize the values smaller than 0 to zero.
-						if (noisy_count < 0) {noisy_count = 0;}
-						noisy_counts.push_back(noisy_count);
-					}
-					// normalize the noisy counts vector so that the total counts are equal
-					// (pdf normalization)
-					double sumNoisy = accumulate(noisy_counts.begin(), noisy_counts.end(), 0.0);
-					for (int ind = 0; ind< noisy_counts.size(); ind++) {
-						noisy_counts[ind] = (sumCounts * noisy_counts[ind]) / sumNoisy;
-					}
-				} else {
-					// no noise
-					noisy_counts = counts;
+				
+				vector<double> noisy_counts = pml_noise(counts, sumCounts, prior_mode, budget);
+				
+				// normalize the noisy counts vector so that the total counts are equal
+				// (pdf normalization)
+				double sumNoisy = accumulate(noisy_counts.begin(), noisy_counts.end(), 0.0);
+				for (int ind = 0; ind< noisy_counts.size(); ind++) {
+					noisy_counts[ind] = (sumCounts * noisy_counts[ind]) / sumNoisy;
 				}
 
 				// store the noisy distributions for each dependence,
 				// we want to return the counts for picked ones
-			//  noisy_distributions.push_back(noisy_counts);
+			    noisy_distributions.push_back(noisy_counts);
 				
 				// now, convert the noisy counts to mutual information
 				
@@ -223,6 +197,8 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 			}
 			// find the index of largest MI
 			picked_index = distance(quality.begin(), max_element(quality.begin(), quality.end()));
+			dependence dp = deps[picked_index];
+			syn.margins[dp.cols].counts[dp.lvls] = noisy_distributions[picked_index];
 		}
 
 		dependence picked = deps[picked_index];
@@ -233,7 +209,48 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 	//	cout << to_string(picked) << endl;
 		// we want to return the selected dependencies and their noisy distributions
 	}
+	//for (auto& dep : model) {cout << dep.x.first << endl;}
 	return model;
+}
+
+// add PML noise based on the mode
+vector<double> bayesian::pml_noise(vector<double> counts, double sumCounts, int prior_mode, double budget) {
+	double p_min;
+
+	if (prior_mode==1) { // uniform
+		p_min = 1.0 / counts.size();
+//	    cout << "Uniform prior: " << p_min << " ";//db
+	} else if (prior_mode==2) { // prior from data
+		// create a copy of count vector and erase the 0 values
+		vector<double> count_no_zeros;
+		count_no_zeros = counts;
+		count_no_zeros.erase(
+			remove(count_no_zeros.begin(), count_no_zeros.end(), 0.0),
+			count_no_zeros.end()
+		);
+		// find non-zero minimum count value
+		vector<double>::iterator minCount = min_element(count_no_zeros.begin(), count_no_zeros.end()); 
+		
+		p_min = *minCount / sumCounts;
+//		cout << "Data prior: " << p_min;//db
+	}
+	vector<double> noisy_counts;
+	// check if budget < -log(p_min), it is a PML property 
+	if (budget <= -log(p_min)) {
+		// we add noise
+		// write the noise term in terms of p_min
+		double noise_scale = 2/(budget+log((1-p_min)/(1-p_min*exp(budget))));
+		for (double count: counts) {
+			double noisy_count = count + noise::nextLaplace(eng, noise_scale);
+			// equalize the values smaller than 0 to zero.
+			if (noisy_count < 0) {noisy_count = 0;}
+			noisy_counts.push_back(noisy_count);
+		} 
+	} else {
+		// no noise
+		noisy_counts = counts;
+	}
+	return noisy_counts;
 }
 
 // Learn a naive bayesian network (for free)
@@ -392,7 +409,10 @@ void bayesian::noNoise(){
 	}
 }
 
-void bayesian::sampling(int num) {
+void bayesian::sampling(int num, string filename) {
+	ofstream csv_file;
+	csv_file.open(filename);
+
 	for (int i = 0; i < num; i++) {
 		vector<int> tuple(dim, 0);
 		for (const dependence& dep : model) {
@@ -402,10 +422,19 @@ void bayesian::sampling(int num) {
 				dep.lvls);
 
 			vector<double> conditional = syn.getConditional(dep, pre);
+			//int a = 0;
+			//for (double c : conditional) {cout << c << " "; a += c;}
+		//	cout << endl;
+		//	cout << "Count: " << a << endl;
 			tuple[dep.x.first] = noise::sample(eng, conditional);
 		}
 		syn.data.push_back(tuple);
+		csv_file << i;
+		for (int val : tuple) {csv_file << "," << val;}
+		csv_file << "\n";
 	}
+	csv_file.close();
+
 	syn.margins.clear();
 }
 

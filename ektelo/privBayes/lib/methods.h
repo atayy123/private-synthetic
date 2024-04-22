@@ -37,8 +37,9 @@ public:
 	vector<vector<attribute>> maximal(set<int>, double);
 	void addnoise(double);
 	void noNoise(void);
+	vector<double> pml_noise(vector<double>, double, int, double);
 
-	void sampling(int);
+	void sampling(int, string);
 
 	// tools
 	void printo_libsvm(const string&, const int&, const set<int>&);
