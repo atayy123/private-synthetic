@@ -39,9 +39,9 @@ for db in dbs:
     scores.append(score)
     print(db +': %.3f' % score)
 
-labs = ['Real', 'other', 'No privacy', 'DP', 'Prior from data', 'Uniform']
-plt.bar(labs, scores)
-plt.title('PrivBayes tested on real data')
-plt.ylabel('Accuracy')
-plt.xlabel('Train dataset')
-plt.show()
+# labs = ['Real', 'other', 'No privacy', 'DP', 'Prior from data', 'Uniform']
+# plt.bar(labs, scores)
+# plt.title('PrivBayes tested on real data')
+# plt.ylabel('Accuracy')
+# plt.xlabel('Train dataset')
+# plt.show()

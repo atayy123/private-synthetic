@@ -151,9 +151,9 @@ if __name__ == '__main__':
     data, workload = benchmarks.adult_benchmark()
     total = data.df.shape[0]
 
-    measurements = privbayes_measurements(data, 1.0, args.seed, 'dp')
+    measurements = privbayes_measurements(data, args.epsilon, args.seed, 'dp')
     est = privbayes_inference(data.domain, measurements, total=total)
-    est.df.to_csv('privbayes.csv')
+    # est.df.to_csv('privbayes.csv')
     
     # elim_order = [m[3][0] for m in measurements][::-1]
 
@@ -166,9 +166,9 @@ if __name__ == '__main__':
     # synth3 = est3.synthetic_data(rows=len(est.df))
     # synth3.df.to_csv('privbayes_pgm.csv')
 
-    measurements_uniform = privbayes_measurements(data, 1.0, args.seed, 'uniform')
+    measurements_uniform = privbayes_measurements(data, args.epsilon, args.seed, 'uniform')
     est4 = privbayes_inference(data.domain, measurements_uniform, total=total)
-    est4.df.to_csv('uniform.csv')
+    # est4.df.to_csv('uniform.csv')
     # elim_order2 = [m[3][0] for m in measurements_uniform][::-1]
     # engine2 = FactoredInference(data.domain, iters=args.iters, warm_start=False, elim_order=elim_order2)
     # est6 = engine.estimate(measurements_uniform, total=len(est4.df))
@@ -176,9 +176,9 @@ if __name__ == '__main__':
     # synth6.df.to_csv('uniform_pgm.csv')
 
     # prior same as real data (expermiental)
-    measurements_real = privbayes_measurements(data, 1.0, args.seed, 'real')
+    measurements_real = privbayes_measurements(data, args.epsilon, args.seed, 'real')
     est5 = privbayes_inference(data.domain, measurements_real, total=total)
-    est5.df.to_csv('real.csv')
+    # est5.df.to_csv('real.csv')
     # elim_order3 = [m[3][0] for m in measurements_real][::-1]
     # engine3 = FactoredInference(data.domain, iters=args.iters, warm_start=False, elim_order=elim_order3)
     # est7 = engine.estimate(measurements_real, total=len(est5.df))
