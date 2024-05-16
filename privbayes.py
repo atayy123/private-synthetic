@@ -14,6 +14,9 @@ import benchmarks
 This file implements PrivBayes, with and without our graphical-model based inference.
 
 Zhang, Jun, Graham Cormode, Cecilia M. Procopiuc, Divesh Srivastava, and Xiaokui Xiao. "Privbayes: Private data release via bayesian networks." ACM Transactions on Database Systems (TODS) 42, no. 4 (2017): 25.
+
+
+Code taken from: https://github.com/ryan112358/private-pgm
 """
 
 
@@ -48,6 +51,7 @@ def privbayes_measurements(data, eps=1.0, seed=0, mode='dp'):
     delta = len(projections)
     for proj in projections:
         x = data.project(proj).datavector()
+        print(type(x))
         #print(proj,len(x))
        # print(x)
         I = Identity(x.size)
@@ -129,7 +133,7 @@ def default_params():
     params = {}
     params['dataset'] = 'adult'
     params['iters'] = 10000
-    params['epsilon'] = 1
+    params['epsilon'] = 2
     params['seed'] = 0
   #  params['mode'] = 'uniform'
 

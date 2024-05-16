@@ -48,6 +48,7 @@ table::table(const int* input, const string& config, bool func1, int m, int n) :
        }
 
     double num = size(); // This is the number of tuples in the dataset
+  //  cout << func;
 
     sens = func ? 6 / num
         : 2 / num * log2((num + 1) / 2) + (num - 1) / num * log2((num + 1) / (num - 1));
@@ -256,6 +257,9 @@ vector<double> table::getConditional(const dependence& dep, const vector<int>& p
     int step = tools::encode(inc, widths);
 
     vector<double> counts = getCounts(dep.cols, dep.lvls);
+    // cout << "Cond Counts: ";
+    // for (double c:counts) {cout << c << " ";}
+    // cout << endl;
     vector<double> conditional;
     for (int t = 0; t < widths[dep.ptr]; t++) {
         conditional.push_back(counts[base]);

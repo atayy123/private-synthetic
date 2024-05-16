@@ -44,6 +44,7 @@ public:
 	// tools
 	void printo_libsvm(const string&, const int&, const set<int>&);
 	string print_model();
+	void print_model_txt(string);
 	string to_string(const dependence&); 
 	string to_string(const attribute&);
 	double evaluate();
@@ -55,6 +56,7 @@ public:
 	double bound;
 	vector<dependence> model;
 	table syn;
+	vector<vector<double>> model_counts;
 };
 
 

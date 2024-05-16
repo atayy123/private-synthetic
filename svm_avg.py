@@ -8,6 +8,8 @@ import random
 import matplotlib.pyplot as plt
 import numpy as np
 
+# Calculate the accuracy of synthetic data on multiple random experiments
+
 original = pd.read_csv('data/adult.csv')
 y = original['income>50K']
 X = original.drop('income>50K',axis=1)

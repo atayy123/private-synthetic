@@ -18,6 +18,7 @@ bayesian::bayesian(engine& eng1, table& tbl1, double ep, double theta, int mode)
 	bound = ep * tbl.size() / (4.0 * dim * theta);		// bound to nr. of cells
 	// if (mode == 2)
 	//  	bound = bound * 100;
+	vector<vector<double>> model_counts;
 
 	//cout << bound << " bound " << endl;
 	// for efficiency
@@ -31,10 +32,14 @@ bayesian::bayesian(engine& eng1, table& tbl1, double ep, double theta, int mode)
 	if (count) cout << "Bound reduced for efficiency: " << count << "." << endl;
 	// for efficiency
 
+	string filename = "Ep"+std::to_string(ep)+"Mode"+std::to_string(mode);
+
 	// Normal PrivBayes
 	if (mode == 1){
 		//model = pml_select(0.5 * ep);
+		cout << "DP Model Sel: " << 0.5*ep << endl;
 		model = greedy(0.5 * ep);
+		cout << "Noise: " << 0.5*ep << endl;
 		addnoise(0.5 * ep);
 	}
 	
@@ -46,7 +51,7 @@ bayesian::bayesian(engine& eng1, table& tbl1, double ep, double theta, int mode)
 
 	// Build a naive bayes network conditioned on the argument of 'naive()'
 	if (mode == 3){
-		model = naive(2);
+		model = naive(5);
 		addnoise(ep);
 
 	}
@@ -54,17 +59,15 @@ bayesian::bayesian(engine& eng1, table& tbl1, double ep, double theta, int mode)
 	// PML with uniform prior
 	if (mode == 4){
 		model = pml_select(ep, 1);
-		//addnoise(0.5 * ep);
 	}
 
 	// PML with real prior
 	if (mode == 5){
 		model = pml_select(ep, 2);
-		//addnoise(0.5 * ep);
 	}
 
-	sampling(tbl.size(), "Ep"+std::to_string(ep)+"Mode"+std::to_string(mode)+".csv");
-
+	sampling(tbl.size(), filename+".csv");
+	print_model_txt(filename+".txt");
 	//print_model();
 
 
@@ -142,13 +145,15 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 	set<int> V = tools::setize(dim);
 	int picked_index;
 	syn.initialize(tbl);
+	double budget = ep/dim;
+	cout << "PML Sel and Noise: " << ep << endl;
+	cout << "budget: " << budget << endl;
 
 	for (int t = 0; t < dim; t++) {
 		// Pick candidate sets
 		vector<dependence> deps = S2V(S, V);
 		vector<double> quality;
 		vector<double> counts;
-		double budget = ep/dim;
 		
 		// If t=0 (first selection), choose the first attribute randomly (do the same procedure as the original code)
 		if (t==0) {
@@ -161,6 +166,7 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 			counts = tbl.getCounts(dp.cols, dp.lvls);
 			double sumCounts = accumulate(counts.begin(), counts.end(), 0.0);
 			vector<double> noisy_counts = pml_noise(counts, sumCounts, prior_mode, budget);
+			model_counts.push_back(noisy_counts);
 			syn.margins[dp.cols].counts[dp.lvls] = noisy_counts;
 
 		} else {
@@ -174,17 +180,25 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 			for (const auto& dep : deps) {
 				// get the histogram
 				counts = tbl.getCounts(dep.cols, dep.lvls);
+				// cout << "Counts: ";
+				// for (double c : counts) {cout << c << " ";}
+				// cout << endl;
 				double sumCounts = accumulate(counts.begin(), counts.end(), 0.0);
 				widths = tbl.getWidth(dep.cols, dep.lvls);
 				
 				vector<double> noisy_counts = pml_noise(counts, sumCounts, prior_mode, budget);
-				
+				// cout << "Noisy: ";
+				// for (double c : noisy_counts) {cout << c << " ";}
+				// cout << endl;
 				// normalize the noisy counts vector so that the total counts are equal
 				// (pdf normalization)
-				double sumNoisy = accumulate(noisy_counts.begin(), noisy_counts.end(), 0.0);
-				for (int ind = 0; ind< noisy_counts.size(); ind++) {
-					noisy_counts[ind] = (sumCounts * noisy_counts[ind]) / sumNoisy;
-				}
+				//double sumNoisy = accumulate(noisy_counts.begin(), noisy_counts.end(), 0.0);
+				//for (int ind = 0; ind< noisy_counts.size(); ind++) {
+				//	noisy_counts[ind] = (sumCounts * noisy_counts[ind]); / sumNoisy;
+				//}
+				// cout << "Noisy Normalized: ";
+				// for (double c : noisy_counts) {cout << c << " ";}
+				// cout << endl;
 
 				// store the noisy distributions for each dependence,
 				// we want to return the counts for picked ones
@@ -193,12 +207,13 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 				// now, convert the noisy counts to mutual information
 				
 			//	cout << tbl.getI(noisy_counts, widths)[dep.ptr] << " ";//db
-				quality.push_back(tbl.getI(noisy_counts, widths)[dep.ptr]);
+				quality.push_back(tbl.getR(noisy_counts, widths)[dep.ptr]);
 			}
 			// find the index of largest MI
 			picked_index = distance(quality.begin(), max_element(quality.begin(), quality.end()));
 			dependence dp = deps[picked_index];
 			syn.margins[dp.cols].counts[dp.lvls] = noisy_distributions[picked_index];
+			model_counts.push_back(noisy_distributions[picked_index]);
 		}
 
 		dependence picked = deps[picked_index];
@@ -234,12 +249,15 @@ vector<double> bayesian::pml_noise(vector<double> counts, double sumCounts, int 
 		p_min = *minCount / sumCounts;
 //		cout << "Data prior: " << p_min;//db
 	}
+	// cout << "p_min: " << p_min << endl;
 	vector<double> noisy_counts;
 	// check if budget < -log(p_min), it is a PML property 
 	if (budget <= -log(p_min)) {
 		// we add noise
 		// write the noise term in terms of p_min
 		double noise_scale = 2/(budget+log((1-p_min)/(1-p_min*exp(budget))));
+		// cout << "DP noise: " << 2/budget << endl;
+		// cout << "Pml noise: " << noise_scale << endl;
 		for (double count: counts) {
 			double noisy_count = count + noise::nextLaplace(eng, noise_scale);
 			// equalize the values smaller than 0 to zero.
@@ -289,6 +307,10 @@ vector<dependence> bayesian::greedy_exact(double ep) {
 		vector<double> quality;
 		for (const auto& dep : deps) 
 			quality.push_back(tbl.getScore(dep));
+
+		if (t==0) {
+			for (double q : quality) {cout << q << " ";}
+		}
 
 		dependence picked = deps[max_element(quality.begin(), quality.end()) - quality.begin()];
 
@@ -356,6 +378,7 @@ vector<dependence> bayesian::S2V(const set<int>& S, const set<int>& V) {
 
 vector<vector<attribute>> bayesian::maximal(set<int> S, double tau) {
 	vector<vector<attribute>> ans;
+	cout << "Tau: " << tau << endl;
 	if (tau < 1) return ans;
 	if (S.empty()) {
 		ans.push_back(vector<attribute>());
@@ -371,6 +394,7 @@ vector<vector<attribute>> bayesian::maximal(set<int> S, double tau) {
 	for (int l = 0; l < depth; l++) {
 		attribute att(last, l);
 		vector<vector<attribute>> maxs = maximal(S, tau / tbl.getWidth(att));
+		cout << "Tau/width: " << tau / tbl.getWidth(att) << endl;
 		for (vector<attribute> z : maxs)
 			if (exist.find(z) == exist.end()) {
 				exist.insert(z);
@@ -394,8 +418,12 @@ void bayesian::addnoise(double ep) {
 	syn.initialize(tbl);
 	for (const dependence& dep : model) {
 		vector<double>& counts_syn = syn.margins[dep.cols].counts[dep.lvls];
-		for (double count : tbl.getCounts(dep.cols, dep.lvls))
+		for (double count : tbl.getCounts(dep.cols, dep.lvls)) {
+			//double res = count + noise::nextLaplace(eng, 2.0 * dim / ep); // debug
+			//if (res < 0) {res=0;} //debug
 			counts_syn.push_back(count + noise::nextLaplace(eng, 2.0 * dim / ep));
+		}
+		model_counts.push_back(counts_syn);
 	}
 
 }
@@ -406,6 +434,7 @@ void bayesian::noNoise(){
 		vector<double>& counts_syn = syn.margins[dep.cols].counts[dep.lvls];
 		for (double count : tbl.getCounts(dep.cols, dep.lvls))
 			counts_syn.push_back(count);
+		model_counts.push_back(counts_syn);
 	}
 }
 
@@ -422,10 +451,6 @@ void bayesian::sampling(int num, string filename) {
 				dep.lvls);
 
 			vector<double> conditional = syn.getConditional(dep, pre);
-			//int a = 0;
-			//for (double c : conditional) {cout << c << " "; a += c;}
-		//	cout << endl;
-		//	cout << "Count: " << a << endl;
 			tuple[dep.x.first] = noise::sample(eng, conditional);
 		}
 		syn.data.push_back(tuple);
@@ -440,10 +465,31 @@ void bayesian::sampling(int num, string filename) {
 
 string bayesian::print_model(){
 	string ans;
+	int i = 0;
 	for (const dependence& dep : model) {
 		ans += to_string(dep) + "\n";
+		for (double c : model_counts[i]) {
+			ans += std::to_string(c) + " ";
+		}
+		ans += "\n";
+		i++;
 	}
 	return ans;
+}
+
+void bayesian::print_model_txt(string filename){
+	ofstream txt_file;
+	txt_file.open(filename);
+	int i = 0;
+	for (const dependence& dep : model) {
+		txt_file << to_string(dep) << "\n";
+		for (double c : model_counts[i]) {
+			txt_file << std::to_string(c) << " ";
+		}
+		txt_file << "\n";
+		i++;
+	}
+	txt_file.close();
 }
 
 string bayesian::to_string(const dependence& dep) {
