@@ -23,8 +23,8 @@ epochs = 5
 k = 2
 
 # info about the dataset
-dataset = "adult"
-target = "income>50K"
+dataset = "car"
+target = "class"
 dataset_name = "data/" + dataset + ".csv"
 dataset_domain = "data/" + dataset + "-domain.json"
 
