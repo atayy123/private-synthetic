@@ -15,7 +15,7 @@ import itertools
 # range of epsilons
 eps = [0.5, 1, 1.5, 2, 2.5, 3]
 # number of iterations
-epochs = 5
+epochs = 10
 
 #pgm_iters = 10000
 
