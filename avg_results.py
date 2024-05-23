@@ -59,6 +59,7 @@ for ep in eps:
     tvd_results = {}
     # iterate epochs
     for i in range(epochs):
+        print("Eps:", ep, "Epoch:", i+1, "started")
         seed = np.random.randint(0,10000)
         # different modes
         for mode in range(1,6):
