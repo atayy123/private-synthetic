@@ -10,37 +10,38 @@ base::~base() {
 
 ////////////////////////////// bayesian //////////////////////////////
 // 3 modes: 1 for normal, 2 for no privacy, 3 for inf at laplace
-bayesian::bayesian(engine& eng1, table& tbl1, double ep, double theta, int mode) : base(eng1, tbl1) {
+bayesian::bayesian(engine& eng1, table& tbl1, double ep, int max_k, int mode) : base(eng1, tbl1) {
+	// double theta: variable deleted
 	dim = tbl.dim; // number of attributes in the dataset
 	// Bound for domain size of chosen attributes
 	// The first one is the original bound
 	// bound =  ep * tbl.size() / (4.0 * dim * theta);		// bound to nr. of cells
-	bound = ep * tbl.size() / (4.0 * dim * theta);		// bound to nr. of cells
+	// bound = ep * tbl.size() / (4.0 * dim * theta);		// bound to nr. of cells
 	// if (mode == 2)
 	//  	bound = bound * 100;
 	vector<vector<double>> model_counts;
-
+	k = max_k;
 	//cout << bound << " bound " << endl;
-	// for efficiency
-	int sub = log2(bound);
-	int count = 0;
-	while (tbl.size() * tools::nCk(dim, sub) > 2e12) {		// default 2e9
-		sub--;
-		bound /= 2;
-		count++;
-	}
-	if (count) cout << "Bound reduced for efficiency: " << count << "." << endl;
-	// for efficiency
+	// // for efficiency
+	// int sub = log2(bound);
+	// int count = 0;
+	// while (tbl.size() * tools::nCk(dim, sub) > 2e12) {		// default 2e9
+	// 	sub--;
+	// 	bound /= 2;
+	// 	count++;
+	// }
+	// if (count) cout << "Bound reduced for efficiency: " << count << "." << endl;
+	// // for efficiency
 
 	string filename = "Ep"+std::to_string(ep)+"Mode"+std::to_string(mode);
 
 	// Normal PrivBayes
 	if (mode == 1){
 		//model = pml_select(0.5 * ep);
-		cout << "DP Model Sel: " << 0.5*ep << endl;
-		model = greedy(0.5 * ep);
-		cout << "Noise: " << 0.5*ep << endl;
-		addnoise(0.5 * ep);
+		//cout << "DP Model Sel: " << 0.5*ep << endl;
+		model = greedy(0.3 * ep);
+		//cout << "Noise: " << 0.5*ep << endl;
+		addnoise(0.7 * ep);
 	}
 	
 	// InfBudget
@@ -51,7 +52,7 @@ bayesian::bayesian(engine& eng1, table& tbl1, double ep, double theta, int mode)
 
 	// Build a naive bayes network conditioned on the argument of 'naive()'
 	if (mode == 3){
-		model = naive(5);
+		model = naive();
 		addnoise(ep);
 
 	}
@@ -66,8 +67,8 @@ bayesian::bayesian(engine& eng1, table& tbl1, double ep, double theta, int mode)
 		model = pml_select(ep, 2);
 	}
 
-	sampling(tbl.size(), filename+".csv");
-	print_model_txt(filename+".txt");
+	sampling(round(tbl.size()*0.33), filename+".csv");
+	//print_model_txt(filename+".txt");
 	//print_model();
 
 
@@ -146,8 +147,8 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 	int picked_index;
 	syn.initialize(tbl);
 	double budget = ep/dim;
-	cout << "PML Sel and Noise: " << ep << endl;
-	cout << "budget: " << budget << endl;
+	//cout << "PML Sel and Noise: " << ep << endl;
+	//cout << "budget: " << budget << endl;
 
 	for (int t = 0; t < dim; t++) {
 		// Pick candidate sets
@@ -207,7 +208,7 @@ vector<dependence> bayesian::pml_select(double ep, int prior_mode) {
 				// now, convert the noisy counts to mutual information
 				
 			//	cout << tbl.getI(noisy_counts, widths)[dep.ptr] << " ";//db
-				quality.push_back(tbl.getR(noisy_counts, widths)[dep.ptr]);
+				quality.push_back(tbl.getI(noisy_counts, widths)[dep.ptr]);
 			}
 			// find the index of largest MI
 			picked_index = distance(quality.begin(), max_element(quality.begin(), quality.end()));
@@ -272,12 +273,20 @@ vector<double> bayesian::pml_noise(vector<double> counts, double sumCounts, int 
 }
 
 // Learn a naive bayesian network (for free)
-vector<dependence> bayesian::naive(int root_id) {
+vector<dependence> bayesian::naive() {
 	vector<dependence> model;
-	
+	set<int> S;
+	set<int> V = tools::setize(dim);
+	double sens = tbl.sens;
+	vector<dependence> deps = S2V(S, V);		
+	vector<double> quality;
+	for (const auto& dep : deps)
+		quality.push_back(tbl.getScore(dep));
 	// Add the root to the naive bayes model. Root should be conditioned on Null
-	dependence root = dependence(vector<attribute>(), attribute(root_id, 0));
-	model.push_back(root);
+	int root_index = noise::EM(eng, quality, 1000.0, sens);
+	dependence root = deps[root_index];
+	int root_id = stoi(to_string(root.x));
+	model.push_back(deps[root_index]);
 
 	vector<attribute> root_attribute;
 	root_attribute.push_back(attribute(root_id, 0));
@@ -298,6 +307,7 @@ vector<dependence> bayesian::naive(int root_id) {
 vector<dependence> bayesian::greedy_exact(double ep) {
 	vector<dependence> model;
 	double sens = tbl.sens;
+	int picked_index;
 
 	set<int> S;
 	set<int> V = tools::setize(dim);
@@ -309,13 +319,15 @@ vector<dependence> bayesian::greedy_exact(double ep) {
 			quality.push_back(tbl.getScore(dep));
 
 		if (t==0) {
-			for (double q : quality) {cout << q << " ";}
+			// choose root randomly
+			picked_index = noise::EM(eng, quality, 1000.0, sens);
+		} else {
+			// choose parent-node pairs based on max quality
+			picked_index = max_element(quality.begin(), quality.end()) - quality.begin();
 		}
 
-		dependence picked = deps[max_element(quality.begin(), quality.end()) - quality.begin()];
-
 		//cout << to_string(picked) << " exact " << endl;
-
+		dependence picked = deps[picked_index];
 		S.insert(picked.x.first);								
 		V.erase(picked.x.first);
 		model.push_back(picked);
@@ -364,7 +376,9 @@ vector<dependence> bayesian::S2V(const set<int>& S, const set<int>& V) {
 	vector<dependence> ans;
 	for (int x : V) {
 		set<vector<attribute>> exist;
-		vector<vector<attribute>> parents = maximal(S, bound / tbl.getWidth(x));
+	//	cout << k;
+		vector<vector<attribute>> parents = maximal(S, k);
+		// maximal(S, bound / tbl.getWidth(x));
 
 		for (const vector<attribute>& p : parents)
 			if (exist.find(p) == exist.end()) {
@@ -376,43 +390,83 @@ vector<dependence> bayesian::S2V(const set<int>& S, const set<int>& V) {
 	return ans;
 }
 
-vector<vector<attribute>> bayesian::maximal(set<int> S, double tau) {
-	vector<vector<attribute>> ans;
-	cout << "Tau: " << tau << endl;
-	if (tau < 1) return ans;
-	if (S.empty()) {
-		ans.push_back(vector<attribute>());
-		return ans;
-	}
+// vector<vector<attribute>> bayesian::maximal(set<int> S, double tau) {
+// 	vector<vector<attribute>> ans;
+// 	cout << "Tau: " << tau << endl;
+// 	if (tau < 1) return ans;
+// 	if (S.empty()) {
+// 		ans.push_back(vector<attribute>());
+// 		return ans;
+// 	}
 
-	int last = *(--S.end());
-	S.erase(--S.end());
-	int depth = tbl.getDepth(last);
-	set<vector<attribute>> exist;
+// 	int last = *(--S.end());
+// 	S.erase(--S.end());
+// 	int depth = tbl.getDepth(last);
+// 	set<vector<attribute>> exist;
 
-	// with 'last' at a certain level
-	for (int l = 0; l < depth; l++) {
-		attribute att(last, l);
-		vector<vector<attribute>> maxs = maximal(S, tau / tbl.getWidth(att));
-		cout << "Tau/width: " << tau / tbl.getWidth(att) << endl;
-		for (vector<attribute> z : maxs)
-			if (exist.find(z) == exist.end()) {
-				exist.insert(z);
-				z.push_back(att);
-				ans.push_back(z);
-			}
-	}
+// 	// with 'last' at a certain level
+// 	for (int l = 0; l < depth; l++) {
+// 		attribute att(last, l);
+// 		vector<vector<attribute>> maxs = maximal(S, tau / tbl.getWidth(att));
+// 		cout << "Tau/width: " << tau / tbl.getWidth(att) << endl;
+// 		for (vector<attribute> z : maxs)
+// 			if (exist.find(z) == exist.end()) {
+// 				exist.insert(z);
+// 				z.push_back(att);
+// 				ans.push_back(z);
+// 			}
+// 	}
 
-	// without 'last'
-	vector<vector<attribute>> maxs = maximal(S, tau);
-	for (vector<attribute> z : maxs)
-		if (exist.find(z) == exist.end()) {
-			exist.insert(z);
-			ans.push_back(z);
-		}
+// 	// without 'last'
+// 	vector<vector<attribute>> maxs = maximal(S, tau);
+// 	for (vector<attribute> z : maxs)
+// 		if (exist.find(z) == exist.end()) {
+// 			exist.insert(z);
+// 			ans.push_back(z);
+// 		}
 
-	return ans;
+// 	return ans;
+// }
+
+
+vector<vector<attribute>> bayesian::maximal(set<int> S, int k) {
+    vector<vector<attribute>> ans;
+    // Check if k is less than or equal to 0
+    if (k <= 0) return ans;
+    if (S.empty()) {
+        ans.push_back(vector<attribute>());
+        return ans;
+    }
+
+    int last = *(--S.end());
+    S.erase(--S.end());
+    int depth = tbl.getDepth(last);
+    set<vector<attribute>> exist;
+
+    // with 'last' at a certain level
+    for (int l = 0; l < depth; l++) {
+        attribute att(last, l);
+        vector<vector<attribute>> maxs = maximal(S, k - 1); // Decrease k by 1
+        for (vector<attribute> z : maxs) {
+            if (z.size() < k) { // Check if number of parents is less than k
+                exist.insert(z);
+                z.push_back(att);
+                ans.push_back(z);
+            }
+        }
+    }
+
+    // without 'last'
+    vector<vector<attribute>> maxs = maximal(S, k); // Recursive call without adding last
+    for (vector<attribute> z : maxs)
+        if (z.size() < k && exist.find(z) == exist.end()) { // Check if number of parents is less than k and not already present
+            exist.insert(z);
+            ans.push_back(z);
+        }
+
+    return ans;
 }
+
 
 void bayesian::addnoise(double ep) {
 	syn.initialize(tbl);

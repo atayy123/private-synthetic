@@ -8,7 +8,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # Compare the classification accuracy of real and synthetic data
-dir = 'cro2/'
+dir = 'yine/'
 target = "income>50K"
 
 original = pd.read_csv('data/adult.csv')

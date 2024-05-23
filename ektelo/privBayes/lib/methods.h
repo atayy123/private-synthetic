@@ -25,16 +25,17 @@ public:
 class bayesian : public base
 {
 public:
-	bayesian(engine&, table&, double, double, int);			//eng, tbl, eps, theta
+	bayesian(engine&, table&, double, int, int);			//eng, tbl, eps, theta
 	~bayesian();
 
 	vector<dependence> greedy(double);
 	vector<dependence> pml_select(double, int);
 	vector<dependence> greedy_exact(double);
-	vector<dependence> naive(int);
+	vector<dependence> naive();
 
 	vector<dependence> S2V(const set<int>&, const set<int>&);
-	vector<vector<attribute>> maximal(set<int>, double);
+	//vector<vector<attribute>> maximal(set<int>, double);
+	vector<vector<attribute>> maximal(set<int>, int);
 	void addnoise(double);
 	void noNoise(void);
 	vector<double> pml_noise(vector<double>, double, int, double);
@@ -53,6 +54,7 @@ public:
 	vector<double> getCounts(const vector<int>&);
 
 	int dim;
+	int k;
 	double bound;
 	vector<dependence> model;
 	table syn;
