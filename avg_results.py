@@ -15,7 +15,7 @@ import itertools
 # range of epsilons
 eps = [0.5, 1, 1.5, 2, 2.5, 3]
 # number of iterations
-epochs = 5
+epochs = 10
 
 #pgm_iters = 10000
 
@@ -23,8 +23,8 @@ epochs = 5
 k = 2
 
 # info about the dataset
-dataset = "car"
-target = "class"
+dataset = "adult"
+target = "income>50K"
 dataset_name = "data/" + dataset + ".csv"
 dataset_domain = "data/" + dataset + "-domain.json"
 
