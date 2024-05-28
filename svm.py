@@ -9,9 +9,9 @@ import numpy as np
 
 # Compare the classification accuracy of real and synthetic data
 dir = 'yine/'
-target = "income>50K"
+target = "class"
 
-original = pd.read_csv('data/adult.csv')
+original = pd.read_csv('data/car.csv')
 y = original[target]
 X = original.drop(target,axis=1)
 
@@ -37,10 +37,10 @@ print('Model trained with real data: %.3f' % score)
 dbs = os.listdir(dir)
 for db in dbs:
     data = pd.read_csv(dir + db,index_col=0)
-    y_temp = data[target]
-    X_temp = data.drop(target,axis=1)
+    y0 = data[target]
+    X0 = data.drop(target,axis=1)
 
-    X0, _, y0, _ = train_test_split(X_temp, y_temp, test_size=0.33, random_state=0)
+#    X0, _, y0, _ = train_test_split(X_temp, y_temp, test_size=0.33, random_state=0)
     clf = svm.SVC()
     #clf = GradientBoostingClassifier()
     clf.fit(X0, y0)

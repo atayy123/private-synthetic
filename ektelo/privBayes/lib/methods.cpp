@@ -42,6 +42,7 @@ bayesian::bayesian(engine& eng1, table& tbl1, double ep, int max_k, int mode) : 
 		model = greedy(0.3 * ep);
 		//cout << "Noise: " << 0.5*ep << endl;
 		addnoise(0.7 * ep);
+		//noNoise();
 	}
 	
 	// InfBudget
@@ -54,7 +55,7 @@ bayesian::bayesian(engine& eng1, table& tbl1, double ep, int max_k, int mode) : 
 	if (mode == 3){
 		model = naive();
 		addnoise(ep);
-
+		//noNoise();
 	}
 
 	// PML with uniform prior
@@ -67,8 +68,8 @@ bayesian::bayesian(engine& eng1, table& tbl1, double ep, int max_k, int mode) : 
 		model = pml_select(ep, 2);
 	}
 
-	sampling(round(tbl.size()*0.33), filename+".csv");
-	//print_model_txt(filename+".txt");
+	sampling(round(tbl.size()), filename+".csv");
+	print_model_txt(filename+".txt");
 	//print_model();
 
 

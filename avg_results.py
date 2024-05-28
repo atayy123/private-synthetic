@@ -13,18 +13,18 @@ import itertools
 # JSON file.
 
 # range of epsilons
-eps = [0.5, 1, 1.5, 2, 2.5, 3]
+eps = [0.5, 1, 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 4.65]
 # number of iterations
 epochs = 10
 
 #pgm_iters = 10000
 
 # max number of parents
-k = 2
+k = 3
 
 # info about the dataset
-dataset = "adult"
-target = "income>50K"
+dataset = "car"
+target = "class"
 dataset_name = "data/" + dataset + ".csv"
 dataset_domain = "data/" + dataset + "-domain.json"
 
@@ -33,7 +33,14 @@ with open(dataset_name) as f:
     first_line = f.readline().rstrip()
 colnames = first_line.split(",")
 
-data = Dataset.load(dataset_name, dataset_domain)
+# form test dataset from original data
+original = pd.read_csv(dataset_name)
+train, test = train_test_split(original, test_size=0.33)
+y_test = test[target]
+X_test = test.drop(target,axis=1)
+train.to_csv("temp.csv")
+
+data = Dataset.load("temp.csv", dataset_domain)
 total = data.df.shape[0]
 domain = data.domain
 config = ''
@@ -43,12 +50,6 @@ for a in domain:
 config = config.encode('utf-8')
 
 values = np.ascontiguousarray(data.df.values.astype(np.int32))
-
-# form test dataset from original data
-original = pd.read_csv(dataset_name)
-y = original[target]
-X = original.drop(target,axis=1)
-X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.33)
 
 # create the results dict
 all_results = {"acc":{}, "tvd":{}}
@@ -107,7 +108,7 @@ for ep in eps:
     all_results["tvd"][ep] = tvd_results
 
 # write results to json
-with open(dataset+"-results-k"+ str(k) +".json", "w") as outfile: 
+with open(dataset + "-results-Rk" + str(k) +".json", "w") as outfile: 
     json.dump(all_results, outfile, indent=5)
 
 # ans = ans.decode('utf-8')[:-1]
